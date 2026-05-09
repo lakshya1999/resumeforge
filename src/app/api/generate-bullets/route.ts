@@ -3,7 +3,7 @@ import Groq from "groq-sdk";
 import { buildBulletPrompt } from "@/lib/prompts";
 import { ResumeVariant } from "@/types/resume";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const getGroq = () => new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       (variant as ResumeVariant) || "startup"
     );
 
-    const completion = await groq.chat.completions.create({
+    const completion = await getGroq().chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,

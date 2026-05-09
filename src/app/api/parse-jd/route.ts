@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { buildJDParserPrompt } from "@/lib/prompts";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const getGroq = () => new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     const prompt = buildJDParserPrompt(jdText, resumeSkills || []);
 
-    const completion = await groq.chat.completions.create({
+    const completion = await getGroq().chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
