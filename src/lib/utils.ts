@@ -11,7 +11,13 @@ export function generateId() {
 
 export function formatDate(dateStr: string) {
   if (!dateStr) return "";
-  const [year, month] = dateStr.split("-");
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[parseInt(month) - 1]} ${year}`;
+  // If it's a YYYY-MM format, convert to "Jan 2022"
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})$/);
+  if (isoMatch) {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthName = months[parseInt(isoMatch[2]) - 1];
+    return monthName ? `${monthName} ${isoMatch[1]}` : isoMatch[1];
+  }
+  // Otherwise return as-is (e.g. "Jan 2022", "2023", "Present")
+  return dateStr;
 }

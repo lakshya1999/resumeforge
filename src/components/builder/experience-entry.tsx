@@ -142,16 +142,16 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
             />
             <Input
               label="Start Date"
-              type="month"
               value={entry.startDate}
               onChange={(e) => update("startDate", e.target.value)}
+              placeholder="Jan 2022"
             />
             <div className="space-y-1">
               <Input
                 label="End Date"
-                type="month"
                 value={entry.isCurrent ? "" : entry.endDate}
                 onChange={(e) => update("endDate", e.target.value)}
+                placeholder="Mar 2024"
                 disabled={entry.isCurrent}
               />
               <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
