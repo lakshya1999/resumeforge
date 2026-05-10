@@ -4,15 +4,29 @@ import { useState, KeyboardEvent } from "react";
 import { useResume } from "@/lib/resume-store";
 import { Card, CardHeader, CardBody } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { ResumeVariant } from "@/types/resume";
 import { X } from "lucide-react";
 
-const SUGGESTED_SKILLS = [
-  "Figma", "User Research", "A/B Testing", "Design Systems", "Prototyping",
-  "Usability Testing", "Information Architecture", "Product Strategy",
-  "Cross-functional Collaboration", "Data Analysis", "SQL", "Amplitude",
-  "Mixpanel", "Design Thinking", "Wireframing", "Mobile Design", "Growth Design",
-];
+const VARIANT_SKILLS: Record<ResumeVariant, string[]> = {
+  startup: [
+    "Figma", "0→1 Product Design", "User Research", "Rapid Prototyping",
+    "Design Systems", "Product Strategy", "Cross-functional Leadership",
+    "Growth Design", "Usability Testing", "Mobile Design", "Wireframing",
+    "Design Thinking", "Stakeholder Management", "MVP Definition",
+  ],
+  bigtech: [
+    "Figma", "A/B Testing", "Design Systems", "User Research", "Amplitude",
+    "Mixpanel", "SQL", "Data Analysis", "Experimentation", "OKRs",
+    "Information Architecture", "Cross-functional Collaboration",
+    "Scalable Design", "Accessibility (WCAG)", "Quantitative Research",
+  ],
+  international: [
+    "Figma", "UX Design", "User Research", "Prototyping", "Design Systems",
+    "Usability Testing", "Information Architecture", "Product Strategy",
+    "Cross-functional Collaboration", "Wireframing", "Mobile Design",
+    "Interaction Design", "Visual Design", "Stakeholder Communication",
+  ],
+};
 
 export function SkillsSection() {
   const { resume, updateResume } = useResume();
@@ -36,7 +50,15 @@ export function SkillsSection() {
     }
   }
 
-  const unusedSuggestions = SUGGESTED_SKILLS.filter((s) => !resume.skills.includes(s));
+  const suggestions = VARIANT_SKILLS[resume.variant].filter(
+    (s) => !resume.skills.includes(s)
+  );
+
+  const variantLabel: Record<ResumeVariant, string> = {
+    startup: "🚀 Startup keywords",
+    bigtech: "🏢 Big Tech keywords",
+    international: "🌍 International ATS keywords",
+  };
 
   return (
     <Card>
@@ -69,9 +91,9 @@ export function SkillsSection() {
         />
 
         <div>
-          <p className="text-xs text-slate-400 mb-2">Suggested ATS keywords</p>
+          <p className="text-xs text-slate-400 mb-2">{variantLabel[resume.variant]}</p>
           <div className="flex flex-wrap gap-1.5">
-            {unusedSuggestions.slice(0, 12).map((skill) => (
+            {suggestions.slice(0, 12).map((skill) => (
               <button
                 key={skill}
                 onClick={() => addSkill(skill)}
