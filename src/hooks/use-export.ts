@@ -31,8 +31,10 @@ export function useExport() {
       const pageH  = doc.internal.pageSize.getHeight(); // 792
       const mX     = 50;   // horizontal margin — matches preview px-12
       const mY     = 44;   // top margin — matches preview py-10
-      const contW  = pageW - mX * 2; // 512pt usable width
-      const lineH  = 14;   // base line height (≈ text-sm leading-relaxed)
+      const contW       = pageW - mX * 2; // 512pt usable width
+      const lineH       = 16.5; // leading-relaxed (1.625 × 10pt) — body text
+      const bulletLineH = 14;   // leading-snug   (1.375 × 10pt) — bullets
+      const sectionGap  = 16;   // space-y-4 between sections
       let y = mY;
 
       const checkPage = (needed: number) => {
@@ -54,7 +56,7 @@ export function useExport() {
       const nameStr = sanitize(resume.fullName || "Your Name").toUpperCase();
       doc.text(nameStr, pageW / 2, y, { align: "center" });
       doc.setCharSpace(0); // reset
-      y += 18;
+      y += 22; // name height + gap before contact
 
       // ── CONTACT LINE (text-sm gray centered, with hyperlinks) ─────
       doc.setFont("times", "normal");
@@ -91,30 +93,29 @@ export function useExport() {
           cx += w;
           if (i < contacts.length - 1) { doc.text(sep, cx, y); cx += sepW; }
         });
-        y += 10;
+        y += 12; // gap after contact line
       }
 
-      // Thick black border-b-2 border-black under header
+      // Thick black border-b-2 border-black — pb-3 from header div
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(1.5);
       doc.line(mX, y, pageW - mX, y);
-      y += 14;
+      y += sectionGap; // space before first section
 
-      // ── Section header (text-sm bold uppercase tracking-wider, thin gray border-b) ──
+      // ── Section header: bold uppercase, pb-0.5, thin gray line, mb-2 ──
       const drawSectionHeader = (title: string) => {
-        checkPage(28);
+        checkPage(32);
         doc.setFont("times", "bold");
         doc.setFontSize(10);
         doc.setCharSpace(0.8); // tracking-wider
         setColor(0);
         doc.text(title.toUpperCase(), mX, y);
         doc.setCharSpace(0);
-        y += 3;
-        // border-b border-gray-400
-        doc.setDrawColor(156, 163, 175);
+        y += 4;  // pb-0.5 (2px) approximated
+        doc.setDrawColor(156, 163, 175); // border-gray-400
         doc.setLineWidth(0.5);
         doc.line(mX, y, pageW - mX, y);
-        y += 10;
+        y += 10; // mb-2 (8px)
       };
 
       // ── Summary ────────────────────────────────────────────────────
@@ -126,7 +127,7 @@ export function useExport() {
         const lines = wrapText(resume.summary || resume.aiSummary, contW);
         checkPage(lines.length * lineH);
         doc.text(lines, mX, y);
-        y += lines.length * lineH + 10;
+        y += lines.length * lineH + sectionGap;
       }
 
       // ── Work Experience ────────────────────────────────────────────
@@ -135,22 +136,20 @@ export function useExport() {
         drawSectionHeader("Work Experience");
 
         for (const entry of expEntries) {
-          checkPage(30);
+          checkPage(36);
 
-          // Role bold + Company normal (same line)
           const roleStr    = sanitize(entry.role);
           const companyStr = entry.company ? sanitize(`, ${entry.company}`) : "";
           const dateStr    = [
             entry.startDate ? formatDate(entry.startDate) : "",
             entry.isCurrent ? "Present" : entry.endDate ? formatDate(entry.endDate) : "",
-          ].filter(Boolean).join(" – ");
+          ].filter(Boolean).join(" - ");
 
-          // Date right-aligned
+          // Date right-aligned in gray
           doc.setFont("times", "normal");
           doc.setFontSize(10);
-          setColor(75); // text-gray-600
+          setColor(75);
           const dateClean = sanitize(dateStr);
-          const dateW = doc.getTextWidth(dateClean);
           if (dateClean) doc.text(dateClean, pageW - mX, y, { align: "right" });
 
           // Role bold
@@ -159,35 +158,39 @@ export function useExport() {
           const roleW = doc.getTextWidth(roleStr);
           doc.text(roleStr, mX, y);
 
-          // Company normal (right after role)
+          // Company normal immediately after role
           if (companyStr) {
             doc.setFont("times", "normal");
             doc.text(companyStr, mX + roleW, y);
           }
 
-          // Clamp role+company so it doesn't collide with date
-          y += lineH;
+          y += lineH; // role row height (≈ text-sm leading-relaxed)
 
-          // Bullets
+          // Bullets — mt-1 gap before first bullet
           const bullets = entry.aiBullets.length > 0
             ? entry.aiBullets
             : entry.rawBullets.filter((b) => b.trim());
 
-          doc.setFont("times", "normal");
-          doc.setFontSize(10);
-          setColor(0);
+          if (bullets.length) {
+            y += 4; // mt-1
 
-          const bulletIndent = 14;
-          const bulletW = contW - bulletIndent;
+            doc.setFont("times", "normal");
+            doc.setFontSize(10);
+            setColor(0);
 
-          for (const bullet of bullets) {
-            const lines = wrapText(bullet, bulletW);
-            checkPage(lines.length * (lineH - 1));
-            doc.text("•", mX + 2, y); // • character
-            doc.text(lines, mX + bulletIndent, y);
-            y += lines.length * (lineH - 1);
+            const bulletIndent = 14;
+            const bulletW = contW - bulletIndent - 2;
+
+            for (const bullet of bullets) {
+              const lines = wrapText(bullet, bulletW);
+              checkPage(lines.length * bulletLineH);
+              doc.text("•", mX + 2, y);
+              doc.text(lines, mX + bulletIndent, y);
+              y += lines.length * bulletLineH;
+            }
           }
-          y += 10; // space-y-4 between entries
+
+          y += sectionGap; // space-y-4 between entries
         }
       }
 
@@ -197,10 +200,10 @@ export function useExport() {
         doc.setFont("times", "normal");
         doc.setFontSize(10);
         setColor(0);
-        const lines = wrapText(resume.skills.join(" · "), contW); // · separator
+        const lines = wrapText(resume.skills.join(" · "), contW);
         checkPage(lines.length * lineH);
         doc.text(lines, mX, y);
-        y += lines.length * lineH + 10;
+        y += lines.length * lineH + sectionGap;
       }
 
       // ── Education ──────────────────────────────────────────────────
@@ -238,7 +241,7 @@ export function useExport() {
             doc.text(notesStr, mX + degW + instW, y);
             setColor(0);
           }
-          y += lineH + 4;
+          y += lineH + 6;
         }
       }
 
