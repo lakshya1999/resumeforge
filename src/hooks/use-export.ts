@@ -4,20 +4,18 @@ import { useState } from "react";
 import { ResumeData } from "@/types/resume";
 import { formatDate } from "@/lib/utils";
 
-// Replace characters jsPDF's built-in fonts can't render — they cause letter-spacing overflow
+// Strip characters Times New Roman can't render — prevents letter-spacing overflow bug
 function sanitize(text: string): string {
   return text
     .replace(/₹/g, "Rs.")
     .replace(/→/g, "->")
     .replace(/←/g, "<-")
-    .replace(/–/g, "-")   // en dash
-    .replace(/—/g, "--")  // em dash
-    .replace(/’/g, "'")   // right single quote
-    .replace(/‘/g, "'")   // left single quote
-    .replace(/“/g, '"')   // left double quote
-    .replace(/”/g, '"')   // right double quote
-    .replace(/…/g, "...") // ellipsis
-    .replace(/[^\x00-\xFF]/g, ""); // strip any remaining non-Latin-1
+    .replace(/–/g, "-")
+    .replace(/—/g, "--")
+    .replace(/'/g, "'").replace(/'/g, "'")
+    .replace(/"/g, '"').replace(/"/g, '"')
+    .replace(/…/g, "...")
+    .replace(/[^\x00-\xFF]/g, "");
 }
 
 export function useExport() {
@@ -29,175 +27,222 @@ export function useExport() {
       const { default: jsPDF } = await import("jspdf");
 
       const doc = new jsPDF({ unit: "pt", format: "letter" });
-      const marginX = 60;
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-      const contentW = pageW - marginX * 2; // 492pt
-      let y = 60;
+      const pageW  = doc.internal.pageSize.getWidth();  // 612
+      const pageH  = doc.internal.pageSize.getHeight(); // 792
+      const mX     = 50;   // horizontal margin — matches preview px-12
+      const mY     = 44;   // top margin — matches preview py-10
+      const contW  = pageW - mX * 2; // 512pt usable width
+      const lineH  = 14;   // base line height (≈ text-sm leading-relaxed)
+      let y = mY;
 
       const checkPage = (needed: number) => {
-        if (y + needed > pageH - 50) {
-          doc.addPage();
-          y = 50;
-        }
+        if (y + needed > pageH - mY) { doc.addPage(); y = mY; }
       };
 
-      // ── Header ────────────────────────────────────────────────
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.text(sanitize(resume.fullName || "Your Name"), pageW / 2, y, { align: "center" });
-      y += 20;
+      // ── Helpers ────────────────────────────────────────────────────
 
-      // Contact line with hyperlinks
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9.5);
+      const setColor = (gray: number) => doc.setTextColor(gray, gray, gray);
+
+      const wrapText = (raw: string, maxW: number) =>
+        doc.splitTextToSize(sanitize(raw), maxW);
+
+      // ── NAME (text-2xl bold uppercase tracking-widest centered) ───
+      doc.setFont("times", "bold");
+      doc.setFontSize(20);
+      doc.setCharSpace(2.5); // tracking-widest
+      setColor(0);
+      const nameStr = sanitize(resume.fullName || "Your Name").toUpperCase();
+      doc.text(nameStr, pageW / 2, y, { align: "center" });
+      doc.setCharSpace(0); // reset
+      y += 18;
+
+      // ── CONTACT LINE (text-sm gray centered, with hyperlinks) ─────
+      doc.setFont("times", "normal");
+      doc.setFontSize(10);
+      setColor(55); // text-gray-700 ≈ #374151
 
       type ContactItem = { label: string; url?: string };
-      const contactItems: ContactItem[] = [
-        resume.email ? { label: resume.email, url: `mailto:${resume.email}` } : null,
-        resume.phone ? { label: resume.phone } : null,
+      const rawContacts: (ContactItem | null)[] = [
+        resume.email    ? { label: resume.email,    url: `mailto:${resume.email}` } : null,
+        resume.phone    ? { label: resume.phone } : null,
         resume.location ? { label: resume.location } : null,
         resume.linkedIn ? { label: resume.linkedIn, url: resume.linkedIn.startsWith("http") ? resume.linkedIn : `https://${resume.linkedIn}` } : null,
-        resume.portfolio ? { label: resume.portfolio, url: resume.portfolio.startsWith("http") ? resume.portfolio : `https://${resume.portfolio}` } : null,
-      ].filter(Boolean) as ContactItem[];
+        resume.portfolio? { label: resume.portfolio, url: resume.portfolio.startsWith("http") ? resume.portfolio : `https://${resume.portfolio}` } : null,
+      ];
+      const contacts = rawContacts.filter(Boolean) as ContactItem[];
 
-      if (contactItems.length) {
-        const separator = "  |  ";
-        const sepW = doc.getTextWidth(separator);
-        const totalW = contactItems.reduce((sum, item, i) =>
-          sum + doc.getTextWidth(item.label) + (i < contactItems.length - 1 ? sepW : 0), 0);
+      if (contacts.length) {
+        const sep = " | ";
+        const sepW = doc.getTextWidth(sep);
+        const totalW = contacts.reduce((sum, c, i) =>
+          sum + doc.getTextWidth(c.label) + (i < contacts.length - 1 ? sepW : 0), 0);
         let cx = (pageW - totalW) / 2;
 
-        contactItems.forEach((item, i) => {
-          const w = doc.getTextWidth(item.label);
-          if (item.url) {
-            doc.setTextColor(17, 85, 204); // blue for links
-            doc.text(item.label, cx, y);
-            doc.link(cx, y - 9, w, 11, { url: item.url });
-            doc.setTextColor(0, 0, 0);
+        contacts.forEach((c, i) => {
+          const w = doc.getTextWidth(c.label);
+          if (c.url) {
+            setColor(17);
+            doc.text(c.label, cx, y);
+            doc.link(cx, y - 9, w, 12, { url: c.url });
+            setColor(55);
           } else {
-            doc.text(item.label, cx, y);
+            doc.text(c.label, cx, y);
           }
           cx += w;
-          if (i < contactItems.length - 1) {
-            doc.text(separator, cx, y);
-            cx += sepW;
-          }
+          if (i < contacts.length - 1) { doc.text(sep, cx, y); cx += sepW; }
         });
-        y += 6;
+        y += 10;
       }
 
-      // Divider
+      // Thick black border-b-2 border-black under header
+      doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(1.5);
-      doc.line(marginX, y + 4, pageW - marginX, y + 4);
-      y += 16;
+      doc.line(mX, y, pageW - mX, y);
+      y += 14;
 
-      // ── Section heading ────────────────────────────────────────
-      const drawSection = (title: string) => {
-        checkPage(30);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10.5);
-        doc.text(title.toUpperCase(), marginX, y);
+      // ── Section header (text-sm bold uppercase tracking-wider, thin gray border-b) ──
+      const drawSectionHeader = (title: string) => {
+        checkPage(28);
+        doc.setFont("times", "bold");
+        doc.setFontSize(10);
+        doc.setCharSpace(0.8); // tracking-wider
+        setColor(0);
+        doc.text(title.toUpperCase(), mX, y);
+        doc.setCharSpace(0);
         y += 3;
+        // border-b border-gray-400
+        doc.setDrawColor(156, 163, 175);
         doc.setLineWidth(0.5);
-        doc.line(marginX, y, pageW - marginX, y);
-        y += 11;
+        doc.line(mX, y, pageW - mX, y);
+        y += 10;
       };
 
-      // ── Body text helper ───────────────────────────────────────
-      const drawText = (raw: string, bold = false, fontSize = 9.5, indent = 0) => {
-        doc.setFont("helvetica", bold ? "bold" : "normal");
-        doc.setFontSize(fontSize);
-        const lines = doc.splitTextToSize(sanitize(raw), contentW - indent);
-        checkPage(lines.length * 13);
-        doc.text(lines, marginX + indent, y);
-        y += lines.length * 13;
-      };
-
-      // ── Summary ────────────────────────────────────────────────
+      // ── Summary ────────────────────────────────────────────────────
       if (resume.summary || resume.aiSummary) {
-        drawSection("Professional Summary");
-        drawText(resume.summary || resume.aiSummary);
-        y += 8;
+        drawSectionHeader("Professional Summary");
+        doc.setFont("times", "normal");
+        doc.setFontSize(10);
+        setColor(0);
+        const lines = wrapText(resume.summary || resume.aiSummary, contW);
+        checkPage(lines.length * lineH);
+        doc.text(lines, mX, y);
+        y += lines.length * lineH + 10;
       }
 
-      // ── Work Experience ────────────────────────────────────────
+      // ── Work Experience ────────────────────────────────────────────
       const expEntries = resume.experience.filter((e) => e.role);
       if (expEntries.length) {
-        drawSection("Work Experience");
-        for (const entry of expEntries) {
-          checkPage(40);
+        drawSectionHeader("Work Experience");
 
-          const dateStr = [
+        for (const entry of expEntries) {
+          checkPage(30);
+
+          // Role bold + Company normal (same line)
+          const roleStr    = sanitize(entry.role);
+          const companyStr = entry.company ? sanitize(`, ${entry.company}`) : "";
+          const dateStr    = [
             entry.startDate ? formatDate(entry.startDate) : "",
             entry.isCurrent ? "Present" : entry.endDate ? formatDate(entry.endDate) : "",
           ].filter(Boolean).join(" – ");
 
-          const roleCompany = sanitize(`${entry.role}${entry.company ? ", " + entry.company : ""}`);
-          const dateClean = sanitize(dateStr);
-
-          // Role + date on same line
-          doc.setFont("helvetica", "bold");
+          // Date right-aligned
+          doc.setFont("times", "normal");
           doc.setFontSize(10);
-          doc.text(roleCompany, marginX, y);
-          if (dateClean) {
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(9.5);
-            doc.text(dateClean, pageW - marginX, y, { align: "right" });
+          setColor(75); // text-gray-600
+          const dateClean = sanitize(dateStr);
+          const dateW = doc.getTextWidth(dateClean);
+          if (dateClean) doc.text(dateClean, pageW - mX, y, { align: "right" });
+
+          // Role bold
+          doc.setFont("times", "bold");
+          setColor(0);
+          const roleW = doc.getTextWidth(roleStr);
+          doc.text(roleStr, mX, y);
+
+          // Company normal (right after role)
+          if (companyStr) {
+            doc.setFont("times", "normal");
+            doc.text(companyStr, mX + roleW, y);
           }
-          y += 14;
 
-          // Bullets — indent 12pt, width shrunk accordingly
-          const bulletIndent = 12;
-          const bulletW = contentW - bulletIndent - 4;
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(9.5);
+          // Clamp role+company so it doesn't collide with date
+          y += lineH;
 
+          // Bullets
           const bullets = entry.aiBullets.length > 0
             ? entry.aiBullets
             : entry.rawBullets.filter((b) => b.trim());
 
+          doc.setFont("times", "normal");
+          doc.setFontSize(10);
+          setColor(0);
+
+          const bulletIndent = 14;
+          const bulletW = contW - bulletIndent;
+
           for (const bullet of bullets) {
-            const lines = doc.splitTextToSize(sanitize(bullet), bulletW);
-            checkPage(lines.length * 13);
-            // Bullet dot
-            doc.text("•", marginX + 2, y);
-            // Text starts after dot
-            doc.text(lines, marginX + bulletIndent, y);
-            y += lines.length * 13;
+            const lines = wrapText(bullet, bulletW);
+            checkPage(lines.length * (lineH - 1));
+            doc.text("•", mX + 2, y); // • character
+            doc.text(lines, mX + bulletIndent, y);
+            y += lines.length * (lineH - 1);
           }
-          y += 6;
+          y += 10; // space-y-4 between entries
         }
       }
 
-      // ── Skills ─────────────────────────────────────────────────
+      // ── Skills ─────────────────────────────────────────────────────
       if (resume.skills.length) {
-        drawSection("Skills");
-        drawText(resume.skills.join(" · "));
-        y += 8;
+        drawSectionHeader("Skills");
+        doc.setFont("times", "normal");
+        doc.setFontSize(10);
+        setColor(0);
+        const lines = wrapText(resume.skills.join(" · "), contW); // · separator
+        checkPage(lines.length * lineH);
+        doc.text(lines, mX, y);
+        y += lines.length * lineH + 10;
       }
 
-      // ── Education ──────────────────────────────────────────────
+      // ── Education ──────────────────────────────────────────────────
       const eduEntries = resume.education.filter((e) => e.degree || e.institution);
       if (eduEntries.length) {
-        drawSection("Education");
+        drawSectionHeader("Education");
         for (const entry of eduEntries) {
-          checkPage(30);
-          const degreeInst = sanitize(`${entry.degree}${entry.institution ? ", " + entry.institution : ""}`);
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(10);
-          doc.text(degreeInst, marginX, y);
+          checkPage(20);
+          const degreeStr = sanitize(entry.degree || "");
+          const instStr   = entry.institution ? sanitize(`, ${entry.institution}`) : "";
+          const notesStr  = entry.notes ? sanitize(` — ${entry.notes}`) : ""; // em dash
+
+          // Year right
           if (entry.year) {
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(9.5);
-            doc.text(sanitize(entry.year), pageW - marginX, y, { align: "right" });
+            doc.setFont("times", "normal");
+            doc.setFontSize(10);
+            setColor(75);
+            doc.text(sanitize(entry.year), pageW - mX, y, { align: "right" });
           }
-          y += 14;
-          if (entry.notes) drawText(entry.notes);
+
+          // Degree bold + institution normal
+          doc.setFont("times", "bold");
+          doc.setFontSize(10);
+          setColor(0);
+          const degW = doc.getTextWidth(degreeStr);
+          doc.text(degreeStr, mX, y);
+
+          doc.setFont("times", "normal");
+          if (instStr) doc.text(instStr, mX + degW, y);
+
+          // Notes in gray
+          if (notesStr) {
+            setColor(75);
+            const instW = doc.getTextWidth(instStr);
+            doc.text(notesStr, mX + degW + instW, y);
+            setColor(0);
+          }
+          y += lineH + 4;
         }
       }
 
-      const fileName = `${(resume.fullName || "resume").replace(/\s+/g, "-").toLowerCase()}-resume.pdf`;
+      const fileName = `${sanitize(resume.fullName || "resume").replace(/\s+/g, "-").toLowerCase()}-resume.pdf`;
       doc.save(fileName);
     } finally {
       setExporting(null);
@@ -221,7 +266,7 @@ export function useExport() {
           text: text.toUpperCase(),
           heading: HeadingLevel.HEADING_2,
           spacing: { before: 200, after: 60 },
-          border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "888888" } },
+          border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: "9CA3AF" } },
         });
 
       const children: InstanceType<typeof Paragraph>[] = [];
@@ -229,40 +274,42 @@ export function useExport() {
       // Name
       children.push(new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { after: 60 },
-        children: [new TextRun({ text: resume.fullName || "Your Name", bold: true, size: 36, font: "Calibri" })],
+        spacing: { after: 40 },
+        children: [new TextRun({
+          text: (resume.fullName || "Your Name").toUpperCase(),
+          bold: true, size: 40, font: "Times New Roman", characterSpacing: 60,
+        })],
       }));
 
       // Contact with hyperlinks
-      type ContactRun = { label: string; url?: string };
-      const contactItems: ContactRun[] = [
-        resume.email ? { label: resume.email, url: `mailto:${resume.email}` } : null,
-        resume.phone ? { label: resume.phone } : null,
+      type CItem = { label: string; url?: string };
+      const cItems: (CItem | null)[] = [
+        resume.email    ? { label: resume.email,    url: `mailto:${resume.email}` } : null,
+        resume.phone    ? { label: resume.phone } : null,
         resume.location ? { label: resume.location } : null,
         resume.linkedIn ? { label: resume.linkedIn, url: resume.linkedIn.startsWith("http") ? resume.linkedIn : `https://${resume.linkedIn}` } : null,
-        resume.portfolio ? { label: resume.portfolio, url: resume.portfolio.startsWith("http") ? resume.portfolio : `https://${resume.portfolio}` } : null,
-      ].filter(Boolean) as ContactRun[];
+        resume.portfolio? { label: resume.portfolio, url: resume.portfolio.startsWith("http") ? resume.portfolio : `https://${resume.portfolio}` } : null,
+      ];
+      const contacts = cItems.filter(Boolean) as CItem[];
 
-      if (contactItems.length) {
-        const runs = contactItems.flatMap((item, i) => {
-          const sep = i < contactItems.length - 1
-            ? [new TextRun({ text: "  |  ", size: 18, font: "Calibri" })]
-            : [];
-          if (item.url) {
+      if (contacts.length) {
+        const runs = contacts.flatMap((c, i) => {
+          const sep = i < contacts.length - 1 ? [new TextRun({ text: " | ", size: 18, font: "Times New Roman", color: "374151" })] : [];
+          if (c.url) {
             return [
-              new ExternalHyperlink({
-                link: item.url,
-                children: [new TextRun({ text: item.label, size: 18, font: "Calibri", color: "1155CC", underline: {} })],
-              }),
+              new ExternalHyperlink({ link: c.url, children: [
+                new TextRun({ text: c.label, size: 18, font: "Times New Roman", color: "111111", underline: {} }),
+              ]}),
               ...sep,
             ];
           }
-          return [new TextRun({ text: item.label, size: 18, font: "Calibri" }), ...sep];
+          return [new TextRun({ text: c.label, size: 18, font: "Times New Roman", color: "374151" }), ...sep];
         });
 
         children.push(new Paragraph({
           alignment: AlignmentType.CENTER,
-          spacing: { after: 120 },
+          spacing: { after: 80 },
+          border: { bottom: { style: BorderStyle.THICK, size: 12, color: "000000" } },
           children: runs,
         }));
       }
@@ -271,8 +318,8 @@ export function useExport() {
       if (resume.summary || resume.aiSummary) {
         children.push(sectionHeading("Professional Summary"));
         children.push(new Paragraph({
-          spacing: { after: 100 },
-          children: [new TextRun({ text: resume.summary || resume.aiSummary, size: 20, font: "Calibri" })],
+          spacing: { after: 120 },
+          children: [new TextRun({ text: resume.summary || resume.aiSummary, size: 20, font: "Times New Roman" })],
         }));
       }
 
@@ -289,16 +336,17 @@ export function useExport() {
           children.push(new Paragraph({
             spacing: { after: 40 },
             children: [
-              new TextRun({ text: `${entry.role}${entry.company ? ", " + entry.company : ""}`, bold: true, size: 20, font: "Calibri" }),
-              ...(dateStr ? [new TextRun({ text: `  ${dateStr}`, size: 20, font: "Calibri", color: "555555" })] : []),
+              new TextRun({ text: entry.role, bold: true, size: 20, font: "Times New Roman" }),
+              ...(entry.company ? [new TextRun({ text: `, ${entry.company}`, size: 20, font: "Times New Roman" })] : []),
+              ...(dateStr ? [new TextRun({ text: `  ${dateStr}`, size: 20, font: "Times New Roman", color: "4B5563" })] : []),
             ],
           }));
 
           for (const b of getBullets(entry)) {
             children.push(new Paragraph({
               bullet: { level: 0 },
-              spacing: { after: 30 },
-              children: [new TextRun({ text: b, size: 20, font: "Calibri" })],
+              spacing: { after: 20 },
+              children: [new TextRun({ text: b, size: 20, font: "Times New Roman" })],
             }));
           }
         }
@@ -308,8 +356,8 @@ export function useExport() {
       if (resume.skills.length) {
         children.push(sectionHeading("Skills"));
         children.push(new Paragraph({
-          spacing: { after: 100 },
-          children: [new TextRun({ text: resume.skills.join(" · "), size: 20, font: "Calibri" })],
+          spacing: { after: 120 },
+          children: [new TextRun({ text: resume.skills.join(" · "), size: 20, font: "Times New Roman" })],
         }));
       }
 
@@ -321,16 +369,12 @@ export function useExport() {
           children.push(new Paragraph({
             spacing: { after: 40 },
             children: [
-              new TextRun({ text: `${entry.degree}${entry.institution ? ", " + entry.institution : ""}`, bold: true, size: 20, font: "Calibri" }),
-              ...(entry.year ? [new TextRun({ text: `  ${entry.year}`, size: 20, font: "Calibri", color: "555555" })] : []),
+              new TextRun({ text: entry.degree, bold: true, size: 20, font: "Times New Roman" }),
+              ...(entry.institution ? [new TextRun({ text: `, ${entry.institution}`, size: 20, font: "Times New Roman" })] : []),
+              ...(entry.notes ? [new TextRun({ text: ` — ${entry.notes}`, size: 20, font: "Times New Roman", color: "4B5563" })] : []),
+              ...(entry.year ? [new TextRun({ text: `  ${entry.year}`, size: 20, font: "Times New Roman", color: "4B5563" })] : []),
             ],
           }));
-          if (entry.notes) {
-            children.push(new Paragraph({
-              spacing: { after: 60 },
-              children: [new TextRun({ text: entry.notes, size: 18, color: "555555", font: "Calibri" })],
-            }));
-          }
         }
       }
 
