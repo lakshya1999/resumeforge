@@ -54,8 +54,9 @@ export function useExport() {
       doc.setCharSpace(2.5); // tracking-widest
       setColor(0);
       const nameStr = sanitize(resume.fullName || "Your Name").toUpperCase();
-      // Measure AFTER setCharSpace so width includes letter-spacing, then center manually
-      const nameW = doc.getTextWidth(nameStr);
+      // getTextWidth() ignores charSpace — add it manually: charSpace × (chars - 1)
+      const charSpace = 2.5;
+      const nameW = doc.getTextWidth(nameStr) + charSpace * (nameStr.length - 1);
       doc.text(nameStr, (pageW - nameW) / 2, y);
       doc.setCharSpace(0); // reset
       y += 22;
