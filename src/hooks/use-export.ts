@@ -54,9 +54,11 @@ export function useExport() {
       doc.setCharSpace(2.5); // tracking-widest
       setColor(0);
       const nameStr = sanitize(resume.fullName || "Your Name").toUpperCase();
-      doc.text(nameStr, pageW / 2, y, { align: "center" });
+      // Measure AFTER setCharSpace so width includes letter-spacing, then center manually
+      const nameW = doc.getTextWidth(nameStr);
+      doc.text(nameStr, (pageW - nameW) / 2, y);
       doc.setCharSpace(0); // reset
-      y += 22; // name height + gap before contact
+      y += 22;
 
       // ── CONTACT LINE (text-sm gray centered, with hyperlinks) ─────
       doc.setFont("times", "normal");
@@ -83,8 +85,13 @@ export function useExport() {
         contacts.forEach((c, i) => {
           const w = doc.getTextWidth(c.label);
           if (c.url) {
-            setColor(17);
+            setColor(17); // dark blue for links
             doc.text(c.label, cx, y);
+            // Underline
+            doc.setDrawColor(17, 17, 17);
+            doc.setLineWidth(0.4);
+            doc.line(cx, y + 1.5, cx + w, y + 1.5);
+            // Clickable area
             doc.link(cx, y - 9, w, 12, { url: c.url });
             setColor(55);
           } else {
