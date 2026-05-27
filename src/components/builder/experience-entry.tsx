@@ -6,8 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SortableItem } from "@/components/ui/sortable-item";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp, Trash2, Sparkles, Check, Plus, X } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
 
 interface Props {
   entry: IExperienceEntry;
@@ -30,6 +44,10 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
   const [generating, setGenerating] = useState(false);
   const [acceptedBullets, setAcceptedBullets] = useState<Set<number>>(new Set());
 
+  const sensors = useSensors(useSensor(PointerSensor, {
+    activationConstraint: { distance: 5 }, // prevent accidental drags while clicking
+  }));
+
   function update(field: keyof IExperienceEntry, value: unknown) {
     onUpdate({ ...entry, [field]: value });
   }
@@ -48,8 +66,17 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
     onUpdate({ ...entry, rawBullets: entry.rawBullets.filter((_, idx) => idx !== i) });
   }
 
+  function onBulletDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = entry.rawBullets.findIndex((_, i) => `bullet-${entry.id}-${i}` === active.id);
+    const newIndex = entry.rawBullets.findIndex((_, i) => `bullet-${entry.id}-${i}` === over.id);
+    if (oldIndex !== -1 && newIndex !== -1) {
+      onUpdate({ ...entry, rawBullets: arrayMove(entry.rawBullets, oldIndex, newIndex) });
+    }
+  }
+
   function acceptBullet(i: number) {
-    setAcceptedBullets((prev) => new Set([...prev, i]));
     const newRaw = [...entry.rawBullets];
     newRaw[i] = entry.aiBullets[i];
     onUpdate({ ...entry, rawBullets: newRaw, aiBullets: [] });
@@ -64,7 +91,6 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
   async function generateBullets() {
     const bullets = entry.rawBullets.filter((b) => b.trim());
     if (!bullets.length || !entry.role) return;
-
     setGenerating(true);
     try {
       const res = await fetch("/api/generate-bullets", {
@@ -80,15 +106,14 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
         }),
       });
       const data = await res.json();
-      if (data.bullets) {
-        onUpdate({ ...entry, aiBullets: data.bullets });
-      }
+      if (data.bullets) onUpdate({ ...entry, aiBullets: data.bullets });
     } finally {
       setGenerating(false);
     }
   }
 
   const hasRawContent = entry.rawBullets.some((b) => b.trim());
+  const bulletIds = entry.rawBullets.map((_, i) => `bullet-${entry.id}-${i}`);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
@@ -166,7 +191,7 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
             </div>
           </div>
 
-          {/* Project type + metrics */}
+          {/* Project type */}
           <div className="space-y-2">
             <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">Project Type</p>
             <div className="flex flex-wrap gap-2">
@@ -195,34 +220,46 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
             hint="The AI will embed these into your bullets automatically"
           />
 
-          {/* Raw bullets */}
-          <div className="space-y-2">
+          {/* Raw bullets — sortable */}
+          <div className="space-y-1.5">
             <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">
-              What you did <span className="text-slate-400 normal-case font-normal">(rough notes — AI will rewrite)</span>
+              What you did{" "}
+              <span className="text-slate-400 normal-case font-normal">(rough notes — AI will rewrite)</span>
             </p>
-            {entry.rawBullets.map((bullet, i) => (
-              <div key={i} className="flex gap-2">
-                <div className="flex-1">
-                  <Textarea
-                    value={bullet}
-                    onChange={(e) => updateRawBullet(i, e.target.value)}
-                    placeholder="e.g. redesigned onboarding flow, users were dropping off"
-                    className="min-h-[56px] text-sm"
-                  />
+            <p className="text-[10px] text-slate-400 mb-2">Drag ⠿ to reorder</p>
+
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onBulletDragEnd}>
+              <SortableContext items={bulletIds} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2">
+                  {entry.rawBullets.map((bullet, i) => (
+                    <SortableItem key={bulletIds[i]} id={bulletIds[i]}>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Textarea
+                            value={bullet}
+                            onChange={(e) => updateRawBullet(i, e.target.value)}
+                            placeholder="e.g. redesigned onboarding flow, users were dropping off"
+                            className="min-h-[56px] text-sm"
+                          />
+                        </div>
+                        {entry.rawBullets.length > 1 && (
+                          <button
+                            onClick={() => removeRawBullet(i)}
+                            className="mt-1 p-1.5 text-slate-300 hover:text-red-400 transition-colors h-fit"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </SortableItem>
+                  ))}
                 </div>
-                {entry.rawBullets.length > 1 && (
-                  <button
-                    onClick={() => removeRawBullet(i)}
-                    className="mt-1 p-1.5 text-slate-300 hover:text-red-400 transition-colors h-fit"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
+              </SortableContext>
+            </DndContext>
+
             <button
               onClick={addRawBullet}
-              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors"
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors mt-1"
             >
               <Plus size={13} /> Add bullet
             </button>
@@ -245,7 +282,7 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
             )}
           </div>
 
-          {/* AI bullets output */}
+          {/* AI bullets output — also sortable */}
           {entry.aiBullets.length > 0 && (
             <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
