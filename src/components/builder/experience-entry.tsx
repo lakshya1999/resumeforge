@@ -44,6 +44,11 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
   const [generating, setGenerating] = useState(false);
   const [acceptedBullets, setAcceptedBullets] = useState<Set<number>>(new Set());
 
+  const filledCount = entry.rawBullets.filter((b) => b.trim()).length;
+  const [bulletMode, setBulletMode] = useState<"single" | "multiple">(
+    filledCount <= 1 ? "single" : "multiple"
+  );
+
   const sensors = useSensors(useSensor(PointerSensor, {
     activationConstraint: { distance: 5 }, // prevent accidental drags while clicking
   }));
@@ -56,14 +61,23 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
     const next = [...entry.rawBullets];
     next[i] = value;
     onUpdate({ ...entry, rawBullets: next });
+    // auto-adjust default mode as user types
+    const filled = next.filter((b) => b.trim()).length;
+    setBulletMode(filled <= 1 ? "single" : "multiple");
   }
 
   function addRawBullet() {
-    onUpdate({ ...entry, rawBullets: [...entry.rawBullets, ""] });
+    const next = [...entry.rawBullets, ""];
+    onUpdate({ ...entry, rawBullets: next });
+    // switching to multiple when user adds a 2nd bullet
+    if (next.filter((b) => b.trim()).length > 1) setBulletMode("multiple");
   }
 
   function removeRawBullet(i: number) {
-    onUpdate({ ...entry, rawBullets: entry.rawBullets.filter((_, idx) => idx !== i) });
+    const next = entry.rawBullets.filter((_, idx) => idx !== i);
+    onUpdate({ ...entry, rawBullets: next });
+    // switch back to single if only one filled bullet remains
+    if (next.filter((b) => b.trim()).length <= 1) setBulletMode("single");
   }
 
   function onBulletDragEnd(event: DragEndEvent) {
@@ -103,6 +117,7 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
           metrics: entry.metrics,
           projectType: entry.projectType,
           variant,
+          mode: bulletMode,
         }),
       });
       const data = await res.json();
@@ -266,20 +281,50 @@ export function ExperienceEntryCard({ entry, variant, onUpdate, onDelete, index 
           </div>
 
           {/* AI Generate CTA */}
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={generateBullets}
-              loading={generating}
-              disabled={!hasRawContent || !entry.role}
-              size="sm"
-              className="gap-1.5"
-            >
-              <Sparkles size={13} />
-              {generating ? "Rewriting with AI..." : "Rewrite with AI"}
-            </Button>
-            {!hasRawContent && (
-              <p className="text-xs text-slate-400">Add at least one bullet above first</p>
-            )}
+          <div className="space-y-2">
+            {/* Mode toggle */}
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-slate-500">Output:</p>
+              <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
+                <button
+                  onClick={() => setBulletMode("single")}
+                  className={cn(
+                    "px-3 py-1.5 font-medium transition-colors",
+                    bulletMode === "single"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-white text-slate-500 hover:bg-slate-50"
+                  )}
+                >
+                  Single bullet
+                </button>
+                <button
+                  onClick={() => setBulletMode("multiple")}
+                  className={cn(
+                    "px-3 py-1.5 font-medium transition-colors border-l border-slate-200",
+                    bulletMode === "multiple"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-white text-slate-500 hover:bg-slate-50"
+                  )}
+                >
+                  Multiple bullets
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={generateBullets}
+                loading={generating}
+                disabled={!hasRawContent || !entry.role}
+                size="sm"
+                className="gap-1.5"
+              >
+                <Sparkles size={13} />
+                {generating ? "Rewriting with AI..." : "Rewrite with AI"}
+              </Button>
+              {!hasRawContent && (
+                <p className="text-xs text-slate-400">Add at least one bullet above first</p>
+              )}
+            </div>
           </div>
 
           {/* AI bullets output — also sortable */}

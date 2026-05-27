@@ -6,7 +6,8 @@ export function buildBulletPrompt(
   company: string,
   metrics: string,
   projectType: string,
-  variant: ResumeVariant
+  variant: ResumeVariant,
+  mode: "single" | "multiple" = "multiple"
 ): string {
   const variantInstructions = {
     startup: `
@@ -43,7 +44,18 @@ UNIVERSAL RULES (non-negotiable):
 6. Maximum 2 lines per bullet. No fluff.
 7. Product design is PRODUCT work — show business impact, not just visual output
 
-RAW BULLETS TO REWRITE:
+OUTPUT MODE: ${mode === "single" ? "SINGLE BULLET" : "MULTIPLE BULLETS"}
+${mode === "single"
+  ? `- Combine ALL the raw input into exactly ONE powerful, comprehensive bullet point
+- It may be slightly longer (up to 3 lines) to capture the full impact
+- Do NOT split into multiple bullets under any circumstances
+- The "bullets" array must contain exactly 1 item`
+  : `- Rewrite each raw input as its own separate bullet (1-in, 1-out)
+- If a single raw input contains multiple distinct achievements, you may split it into 2 bullets
+- Each bullet stands alone`
+}
+
+RAW INPUT:
 ${rawBullets.map((b, i) => `${i + 1}. ${b}`).join("\n")}
 
 OUTPUT FORMAT:

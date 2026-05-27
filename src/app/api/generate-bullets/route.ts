@@ -7,7 +7,7 @@ const getGroq = () => new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
-    const { rawBullets, role, company, metrics, projectType, variant } = await req.json();
+    const { rawBullets, role, company, metrics, projectType, variant, mode } = await req.json();
 
     if (!rawBullets?.length || !role) {
       return NextResponse.json({ error: "rawBullets and role are required" }, { status: 400 });
@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
       company || "",
       metrics || "",
       projectType || "other",
-      (variant as ResumeVariant) || "startup"
+      (variant as ResumeVariant) || "startup",
+      (mode as "single" | "multiple") || "multiple"
     );
 
     const completion = await getGroq().chat.completions.create({
