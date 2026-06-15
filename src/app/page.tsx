@@ -3,6 +3,7 @@
 import { useResume } from "@/lib/resume-store";
 import { Navbar } from "@/components/layout/navbar";
 import { VariantSwitcher } from "@/components/builder/variant-switcher";
+import { ResumeUploader } from "@/components/builder/resume-uploader";
 import { PersonalInfo } from "@/components/builder/personal-info";
 import { ExperienceSection } from "@/components/builder/experience-section";
 import { SkillsSection } from "@/components/builder/skills-section";
@@ -24,6 +25,7 @@ export default function Home() {
             {/* Left: form panels */}
             <div className="space-y-4 min-w-0">
               <VariantSwitcher />
+              <ResumeUploader />
               <PersonalInfo />
               <ExperienceSection />
               <SkillsSection />

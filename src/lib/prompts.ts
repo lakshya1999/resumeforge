@@ -68,6 +68,51 @@ Return a JSON object with this exact shape:
 Return ONLY the JSON. No explanation, no markdown fences.`;
 }
 
+export function buildResumeParsePrompt(resumeText: string): string {
+  return `You are a resume parser. Extract structured data from the raw resume text below and return it as JSON.
+
+RAW RESUME TEXT:
+${resumeText}
+
+EXTRACTION RULES:
+1. Extract the candidate's contact details exactly as written. If a field is absent, use an empty string "".
+2. For linkedIn and portfolio, return the full URL/handle if present (e.g. "linkedin.com/in/janedoe", "janedoe.design").
+3. For each work experience, capture the role, company, start date, and end date as written (e.g. "Jan 2022", "2021"). Set "isCurrent": true only if the role says "Present", "Current", or "Now".
+4. Put EACH responsibility/achievement bullet from a role into "rawBullets" as a separate string, kept VERBATIM — do NOT rewrite, summarize, or embellish them. The user will rewrite them later with AI.
+5. Classify each role's "projectType" as one of: "0to1", "redesign", "growth", "systems", "other". Default to "other" when unclear.
+6. Extract the professional summary/objective into "summary" verbatim if one exists, else "".
+7. Extract skills as a flat array of individual skill strings.
+8. Extract education entries with degree, institution, year, and any notes (honors, GPA, etc.).
+9. Do NOT invent data. Only extract what is actually present in the text.
+
+OUTPUT FORMAT — return ONLY this JSON, no markdown fences, no commentary:
+{
+  "fullName": "",
+  "email": "",
+  "phone": "",
+  "location": "",
+  "linkedIn": "",
+  "portfolio": "",
+  "summary": "",
+  "experience": [
+    {
+      "role": "",
+      "company": "",
+      "startDate": "",
+      "endDate": "",
+      "isCurrent": false,
+      "rawBullets": ["", ""],
+      "metrics": "",
+      "projectType": "other"
+    }
+  ],
+  "skills": ["", ""],
+  "education": [
+    { "degree": "", "institution": "", "year": "", "notes": "" }
+  ]
+}`;
+}
+
 export function buildJDParserPrompt(jdText: string, resumeSkills: string[]): string {
   return `You are an ATS optimization expert. Analyze this job description and extract actionable intelligence for a Product Designer candidate.
 
