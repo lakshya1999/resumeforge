@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Groq from "groq-sdk";
 import { buildSummaryPrompt } from "@/lib/prompts";
 import { ResumeVariant } from "@/types/resume";
-
-const getGroq = () => new Groq({ apiKey: process.env.GROQ_API_KEY });
+import { getGroq, GROQ_MODEL } from "@/lib/groq";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,7 +15,7 @@ export async function POST(req: NextRequest) {
     );
 
     const completion = await getGroq().chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: GROQ_MODEL,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
     });
